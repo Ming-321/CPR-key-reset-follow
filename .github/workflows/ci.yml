@@ -25,6 +25,7 @@ jobs:
       - run: cargo test --locked
       - run: pnpm --dir frontend install --frozen-lockfile
       - run: pnpm --dir frontend lint
+      - run: pnpm --dir frontend test
       - run: pnpm --dir frontend build
       - run: cargo build --release --locked
       - name: 构建固定版本打包工具

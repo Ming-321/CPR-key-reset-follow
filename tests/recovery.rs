@@ -427,3 +427,32 @@ async fn prolonged_outage_discards_queued_cycle_before_any_reset() {
         WEEK * 4
     );
 }
+
+#[tokio::test]
+async fn beta_state_and_pending_reset_survive_display_settings() {
+    use key_reset_follow::model::DisplayTimezone;
+    let h = Fake::new();
+    setup(&h).await;
+    next(&h);
+    h.0.lock().unwrap().lost_response = Some("key-a".into());
+    Engine::load(&h)
+        .await
+        .unwrap()
+        .check("account-a", WEEK + 1000)
+        .await
+        .unwrap();
+    let mut old = serde_json::to_value(&h.0.lock().unwrap().state).unwrap();
+    old.as_object_mut().unwrap().remove("display_timezone");
+    let recovered: State = serde_json::from_value(old.clone()).unwrap();
+    assert_eq!(recovered.display_timezone, DisplayTimezone::Browser);
+    h.0.lock().unwrap().state = recovered;
+    let mut e = Engine::load(&h).await.unwrap();
+    e.state.display_timezone = DisplayTimezone::Shanghai;
+    e.state.early_auto = false;
+    e.save().await.unwrap();
+    let after = serde_json::to_value(&h.0.lock().unwrap().state).unwrap();
+    assert_eq!(after["links"], old["links"]);
+    assert_eq!(after["accounts"], old["accounts"]);
+    assert_eq!(h.0.lock().unwrap().resets.len(), 2);
+    assert!(serde_json::from_value::<DisplayTimezone>(serde_json::json!("unsupported")).is_err());
+}

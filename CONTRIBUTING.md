@@ -13,6 +13,7 @@ cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
 pnpm --dir frontend install --frozen-lockfile
 pnpm --dir frontend lint
+pnpm --dir frontend test
 pnpm --dir frontend build
 ```
 
@@ -33,6 +34,8 @@ pnpm --dir frontend build
 PR 说明问题、行为、实际验证和未验证部分；页面变动附当前实现的合成数据截图
 使用 AI 时披露工具和实际模型型号，未知时如实注明并保持 Draft
 不得上传真实账号、令牌、生产地址和生产截图
+
+页面金额仅格式化显示，不回写预算。时区选择只影响显示；浏览器默认时区、跨日和夏令时由展示测试覆盖，实际设置保存及 beta 升级保留状态仍需隔离宿主验证。
 
 ## 打包与发布
 
