@@ -1,0 +1,68 @@
+name: CI
+on:
+  push:
+    branches: [main, 'codex/**']
+    tags: ['v*']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          components: rustfmt, clippy
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.6.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked
+      - run: pnpm --dir frontend install --frozen-lockfile
+      - run: pnpm --dir frontend lint
+      - run: pnpm --dir frontend build
+      - run: cargo build --release --locked
+      - name: 构建固定版本打包工具
+        run: |
+          git init /tmp/cpr-sdk
+          git -C /tmp/cpr-sdk remote add origin https://github.com/zyycn/codex-proxy-rs.git
+          git -C /tmp/cpr-sdk fetch --depth 1 origin 9c1067676495623111497111b7cb136544fe1828
+          git -C /tmp/cpr-sdk checkout --detach FETCH_HEAD
+          cargo build --manifest-path /tmp/cpr-sdk/backend/Cargo.toml -p codex-proxy-plugin-cli --locked
+      - run: /tmp/cpr-sdk/backend/target/debug/cpr-plugin package --manifest plugin.json --binary target/release/key-reset-follow --target x86_64-unknown-linux-gnu --resource-map web=frontend/dist --output-dir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: dist/*
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-x86_64
+          path: dist
+      - name: 校验版本并发布不可覆盖附件
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          test "$RELEASE_TAG" = "v$(jq -r .version plugin.json)"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo '发行已存在，不覆盖附件'
+            exit 1
+          fi
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            gh release create "$RELEASE_TAG" dist/* --title "$RELEASE_TAG" --notes-file release/notes.md --prerelease --latest=false --verify-tag
+          else
+            gh release create "$RELEASE_TAG" dist/* --title "$RELEASE_TAG" --notes-file release/notes.md --latest --verify-tag
+          fi

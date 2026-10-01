@@ -1,0 +1,11 @@
+name: 问题反馈
+description: 提供脱敏复现信息
+title: "[问题] "
+body:
+  - type: textarea
+    id: issue
+    attributes:
+      label: 问题与复现
+      description: 插件与宿主版本、操作步骤、预期和实际结果，请勿上传真实凭据或生产截图
+    validations:
+      required: true

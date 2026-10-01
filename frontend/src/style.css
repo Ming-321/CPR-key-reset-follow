@@ -1,0 +1,14 @@
+@import 'tailwindcss';
+@import '@codex-proxy/ui/tailwind.css';
+:root { font-family: var(--cp-font-family, system-ui); color: var(--cp-color-text); background: transparent; font-size: 14px; }
+body { margin: 0; } #app { min-height: inherit; } * { box-sizing: border-box; }
+.panel { padding: 18px; border-radius: 12px; background: var(--cp-color-bg-container); }
+.toolbar, .tools, .toggle, .status, .expiry, footer, .banner { display: flex; align-items: center; gap: 8px; }
+.toolbar, .banner { justify-content: space-between; margin-bottom: 16px; } .tools { flex-wrap: wrap; }
+.muted, small, footer, th { color: var(--cp-color-text-secondary); } small { display: block; margin-top: 5px; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; } th { font-weight: 400; text-align: left; font-size: 12px; } th, td { padding: 14px 10px; border-bottom: 1px solid var(--cp-color-border-secondary); } td { vertical-align: middle; } td:first-child { width: 27%; } td:nth-child(3) { width: 25%; } td:last-child { width: 80px; }
+progress { display: block; width: 85%; height: 5px; margin-top: 8px; accent-color: var(--cp-color-primary); }
+footer { margin-top: 18px; font-size: 12px; } .help { padding: 12px 16px; width: 300px; line-height: 1.7; font-size: 13px; }
+.banner { background: var(--cp-color-warning-container); color: var(--cp-color-warning-text); border-radius: 8px; padding: 10px 14px; } .error { color: var(--cp-color-error-text); padding: 8px 0; } .empty { padding: 60px 0; text-align: center; color: var(--cp-color-text-secondary); } .empty p { margin-bottom: 16px; }
+.field { display: grid; gap: 8px; margin: 12px 0 18px; } h3 { font-weight: 600; } h4 { margin: 18px 0 8px; font-weight: 600; } p { margin: 8px 0; line-height: 1.7; } details { margin-top: 16px; } summary { cursor: pointer; color: var(--cp-color-text-secondary); } dl { display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; margin: 18px 0; } dd { margin: 0; }
+@media(max-width: 720px) { .panel { padding: 12px; } .toolbar { align-items: flex-start; gap: 16px; flex-wrap: wrap; } thead { display: none; } table, tbody, tr, td { display: block; width: 100% !important; } tr { position: relative; padding: 12px 0; border-bottom: 1px solid var(--cp-color-border-secondary); } td { padding: 6px; border: 0; } td:last-child { position: absolute; right: 0; top: 14px; width: auto !important; } .email { display: none; } .expiry { flex-wrap: wrap; } }
