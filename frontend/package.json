@@ -1,1 +1,28 @@
-{ "name": "key-reset-follow-ui", "type": "module", "version": "0.1.0-beta.1", "private": true, "packageManager": "pnpm@12.6.0", "scripts": { "build": "vue-tsc --noEmit && vite build", "lint": "eslint ." }, "dependencies": { "@codex-proxy/ui": "https://github.com/zyycn/codex-proxy-ui/releases/download/v0.3.0/codex-proxy-ui-0.3.0.tgz", "@lucide/vue": "1.48.0", "vue": "3.5.43" }, "devDependencies": { "@antfu/eslint-config": "9.5.1", "@tailwindcss/vite": "4.3.3", "@types/node": "26.6.2", "@vitejs/plugin-vue": "6.0.9", "eslint": "10.11.0", "tailwindcss": "4.3.3", "typescript": "6.0.3", "vite": "8.3.0", "vue-tsc": "3.3.11" } }
+{
+  "name": "key-reset-follow-ui",
+  "type": "module",
+  "version": "0.1.0-beta.1",
+  "private": true,
+  "packageManager": "pnpm@12.6.0",
+  "scripts": {
+    "build": "vue-tsc --noEmit && vite build",
+    "lint": "eslint .",
+    "test": "node --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@codex-proxy/ui": "https://github.com/zyycn/codex-proxy-ui/releases/download/v0.3.0/codex-proxy-ui-0.3.0.tgz",
+    "@lucide/vue": "1.48.0",
+    "vue": "3.5.43"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "9.5.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "26.6.2",
+    "@vitejs/plugin-vue": "6.0.9",
+    "eslint": "10.11.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vite": "8.3.0",
+    "vue-tsc": "3.3.11"
+  }
+}

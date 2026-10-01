@@ -62,6 +62,8 @@ pub struct Account {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct State {
     pub early_auto: bool,
+    #[serde(default)]
+    pub display_timezone: DisplayTimezone,
     pub links: BTreeMap<String, Link>,
     pub accounts: BTreeMap<String, Account>,
 }
@@ -69,8 +71,20 @@ impl Default for State {
     fn default() -> Self {
         Self {
             early_auto: true,
+            display_timezone: DisplayTimezone::default(),
             links: BTreeMap::new(),
             accounts: BTreeMap::new(),
         }
     }
+}
+
+#[derive(Clone, Copy, Default, Debug, PartialEq, Serialize, Deserialize)]
+pub enum DisplayTimezone {
+    #[default]
+    #[serde(rename = "browser")]
+    Browser,
+    #[serde(rename = "Asia/Shanghai")]
+    Shanghai,
+    #[serde(rename = "UTC")]
+    Utc,
 }

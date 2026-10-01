@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { Link, Sample, Snapshot } from './api/modules/follow'
+import type { DisplayTimezone, Link, Sample, Snapshot } from './api/modules/follow'
 import { BaseButton, BaseCheckbox, BaseIconButton, BaseModal, BaseSelect, BaseSwitch, BaseTag } from '@codex-proxy/ui'
-import { ChevronRight, Plus, RefreshCw } from '@lucide/vue'
+import { ArrowLeft, ChevronRight, Plus, RefreshCw, Settings } from '@lucide/vue'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { command, load } from './api/modules/follow'
-import Help from './Help.vue'
+import { displayDate, money, percent, resolveTimezone, timezoneLabel } from './display'
 
 const data = ref<Snapshot>()
 const busy = ref(false)
@@ -17,6 +17,18 @@ const preview = ref<Sample>()
 const previewError = ref('')
 const previewBusy = ref(false)
 const acknowledge = ref(false)
+const settingsOpen = ref(false)
+const draftEarly = ref(true)
+const draftTimezone = ref<DisplayTimezone>('browser')
+const saved = ref(false)
+const timezones = [
+  { value: 'browser', label: '跟随浏览器' },
+  { value: 'Asia/Shanghai', label: '北京时间（UTC+8）' },
+  { value: 'UTC', label: 'UTC' },
+]
+const timezone = computed(() => resolveTimezone(data.value?.state.display_timezone || 'browser'))
+const timezoneText = computed(() => timezoneLabel(timezone.value))
+const draftTimezoneText = computed(() => timezoneLabel(resolveTimezone(draftTimezone.value)))
 const modalOpen = computed({ get: () => !!modal.value, set: (value) => {
   if (!value)
     modal.value = ''
@@ -24,11 +36,12 @@ const modalOpen = computed({ get: () => !!modal.value, set: (value) => {
 const rows = computed(() => Object.values(data.value?.state.links || {}))
 const link = computed(() => data.value?.state.links[selected.value])
 const account = (l: Link) => data.value?.accounts.find(a => a.account_id === l.account_id)
+const accountName = (l: Link) => account(l)?.name?.trim() || account(l)?.email || '账号已删除'
 const observation = (l: Link) => data.value?.state.accounts[l.account_id]
 const sample = (l: Link) => observation(l)?.sample || l.baseline
 const budget = (l: Link) => data.value?.budgets[l.key_id]
 const keyName = (l: Link) => data.value?.keys.find(k => k.id === l.key_id)?.name || 'Key 已删除'
-const date = (value: number | null | undefined, full = false) => value == null ? '尚未开启或已到期' : full ? new Date(value).toLocaleString() : new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(value)
+const date = (value: number | null | undefined, full = false) => displayDate(value, timezone.value, full)
 function status(l: Link): '监测中' | '等待确认' | '需处理' | '已暂停' {
   if (l.paused)
     return '已暂停'
@@ -39,7 +52,46 @@ function status(l: Link): '监测中' | '等待确认' | '需处理' | '已暂�
 const tone = (l: Link) => ({ 监测中: 'success', 等待确认: 'warning', 需处理: 'danger', 已暂停: 'neutral' } as const)[status(l)]
 const needs = computed(() => rows.value.filter(l => ['等待确认', '需处理'].includes(status(l))))
 const keys = computed(() => (data.value?.keys || []).map(k => ({ value: k.id, label: k.name, disabled: !!data.value?.state.links[k.id], description: data.value?.state.links[k.id] ? `已关联 ${account(data.value.state.links[k.id])?.name || '账号'}` : undefined })))
-const accounts = computed(() => (data.value?.accounts || []).map(a => ({ value: a.account_id, label: a.name || a.email || a.account_id, description: (a.provider_id !== 'openai' || a.authentication_kind !== 'oauth') ? '仅支持 Codex 账号周窗口' : a.email || undefined, disabled: (a.provider_id !== 'openai' || a.authentication_kind !== 'oauth') })))
+const accounts = computed(() => (data.value?.accounts || []).map(a => ({ value: a.account_id, label: a.name || a.email || a.account_id, description: (a.provider_id !== 'openai' || a.authentication_kind !== 'oauth') ? '仅支持 Codex 账号周窗口' : a.name !== a.email ? a.email || undefined : undefined, disabled: (a.provider_id !== 'openai' || a.authentication_kind !== 'oauth') })))
+function openSettings() {
+  draftEarly.value = data.value!.state.early_auto
+  draftTimezone.value = data.value!.state.display_timezone || 'browser'
+  error.value = ''
+  saved.value = false
+  settingsOpen.value = true
+}
+function closeSettings() {
+  settingsOpen.value = false
+  error.value = ''
+  saved.value = false
+}
+async function saveSettings() {
+  if (busy.value)
+    return
+  busy.value = true
+  error.value = ''
+  saved.value = false
+  let committed = false
+  try {
+    await command({ action: 'settings', version: data.value?.version, enabled: draftEarly.value, display_timezone: draftTimezone.value })
+    committed = true
+    data.value = await load()
+    saved.value = true
+  }
+  catch (e) {
+    const message = (e as Error).message
+    // 保留草稿，更新状态版本，管理员再次保存时不必丢掉已填写的设置。
+    try {
+      data.value = await load()
+    }
+    catch { /* 保留原始错误供用户重试。 */ }
+    error.value = committed ? `设置已保存，但页面刷新失败：${message}` : message
+  }
+  finally { busy.value = false }
+}
+watch([draftEarly, draftTimezone], () => {
+  saved.value = false
+})
 async function refresh() {
   try {
     data.value = await load()
@@ -99,7 +151,7 @@ let timer: ReturnType<typeof setInterval>
 onMounted(() => {
   refresh()
   timer = setInterval(() => {
-    if (!document.hidden && !modal.value && !busy.value)
+    if (!document.hidden && !modal.value && !busy.value && !settingsOpen.value)
       refresh()
   }, 30000)
 })
@@ -108,66 +160,122 @@ onUnmounted(() => clearInterval(timer))
 
 <template>
   <main class="panel">
-    <p v-if="error && !modal" role="alert" class="error">
-      {{ error }} <BaseButton size="sm" @click="refresh">
-        重试
-      </BaseButton>
-    </p>
-    <div v-if="needs.length" class="banner">
-      <span>有 {{ needs.length }} 个关联需要处理</span><BaseButton size="sm" @click="open('process', needs[0])">
-        处理
-      </BaseButton>
-    </div>
-    <div class="toolbar">
-      <span class="muted">{{ rows.length }} 个关联</span><div class="tools">
-        <label class="toggle"><BaseSwitch label="提前重置自动清零" :model-value="data?.state.early_auto ?? true" :disabled="busy || !data" @update:model-value="act('settings', { enabled: $event })" />提前重置自动清零</label><Help>开启时，确认账号提前进入新周周期后自动清零<br>关闭时等待你确认，正常换周仍自动清零</Help><BaseIconButton label="刷新" :disabled="busy" @click="refresh">
-          <RefreshCw />
-        </BaseIconButton><BaseButton variant="primary" :disabled="!data" @click="open('add')">
+    <template v-if="settingsOpen">
+      <div class="settings-heading">
+        <BaseButton :disabled="busy" @click="closeSettings">
+          <ArrowLeft :size="16" />返回关联列表
+        </BaseButton>
+        <h2>插件设置</h2>
+        <p class="muted">
+          设置对所有管理员生效
+        </p>
+      </div>
+      <form class="settings-form" @submit.prevent="saveSettings">
+        <section class="setting-row">
+          <div>
+            <h3>提前重置时自动重置额度</h3>
+            <p>上游提前重置或者使用重置卡，识别后自动重置额度</p>
+            <p class="muted">
+              关闭后需要手动确认；正常换周仍自动处理
+            </p>
+          </div>
+          <BaseSwitch v-model="draftEarly" label="提前重置时自动重置额度" :disabled="busy" />
+        </section>
+        <section class="setting-row timezone-setting">
+          <div>
+            <h3>显示时区</h3><p class="muted">
+              仅影响页面上的时间显示，不改变额度重置时间
+            </p>
+          </div>
+          <div class="timezone-input">
+            <BaseSelect v-model="draftTimezone" :options="timezones" :disabled="busy" aria-label="显示时区" /><small>当前显示：{{ draftTimezoneText }}</small>
+          </div>
+        </section>
+        <p v-if="error" role="alert" class="error">
+          {{ error }}
+        </p>
+        <div class="settings-actions">
+          <span v-if="saved" role="status" class="saved">设置已保存</span>
+          <BaseButton :disabled="busy" @click="closeSettings">
+            取消
+          </BaseButton>
+          <BaseButton variant="primary" :loading="busy" @click="saveSettings">
+            保存设置
+          </BaseButton>
+        </div>
+      </form>
+    </template>
+    <template v-else>
+      <p v-if="error && !modal" role="alert" class="error">
+        {{ error }} <BaseButton size="sm" @click="refresh">
+          重试
+        </BaseButton>
+      </p>
+      <div class="toolbar">
+        <div><span class="count">{{ rows.length }} 个关联</span><small class="timezone-caption">时间：{{ timezoneText }}</small></div>
+        <div class="tools toolbar-actions">
+          <BaseIconButton label="刷新列表" title="刷新列表，不检查账号额度" :disabled="busy" @click="refresh">
+            <RefreshCw :size="17" />
+          </BaseIconButton>
+          <BaseButton :disabled="busy || !data" @click="openSettings">
+            <Settings :size="16" />设置
+          </BaseButton>
+          <BaseButton variant="primary" :disabled="busy || !data" @click="open('add')">
+            <Plus :size="16" />添加关联
+          </BaseButton>
+        </div>
+      </div>
+      <div v-if="needs.length" class="banner">
+        <span>{{ needs.length }} 个关联需要处理</span><BaseButton size="sm" @click="open('process', needs[0])">
+          查看并处理
+        </BaseButton>
+      </div>
+      <p v-if="!data && !error" class="empty" role="status">
+        正在加载关联
+      </p>
+      <div v-else-if="data && !rows.length" class="empty">
+        <p>尚未建立关联</p><small>选择 Key 和对应账号，开始跟随周额度重置</small><BaseButton variant="primary" @click="open('add')">
           <Plus :size="16" />添加关联
         </BaseButton>
       </div>
-    </div>
-    <p v-if="!data && !error" class="empty" role="status">
-      正在加载关联
-    </p>
-    <div v-else-if="data && !rows.length" class="empty">
-      <p>尚未建立关联</p><BaseButton variant="primary" @click="open('add')">
-        添加关联
-      </BaseButton>
-    </div>
-    <table v-else-if="data">
-      <thead><tr><th>关联</th><th>账号周期</th><th>Key 周预算</th><th>状态</th><th><span class="sr-only">操作</span></th></tr></thead><tbody>
-        <tr v-for="l in rows" :key="l.key_id">
-          <td><strong>{{ keyName(l) }}</strong><small>{{ account(l)?.name || '账号已删除' }}<span class="email"> · {{ account(l)?.email }}</span></small></td>
-          <td><span :title="date(sample(l).reset, true)">重置 {{ date(sample(l).reset) }}</span><small>账号已用 {{ sample(l).used == null ? '未知' : `${sample(l).used}%` }}</small><small v-if="observation(l)?.error">最近检查失败</small><small v-else-if="sample(l).reset <= Date.now()">上游窗口已到期，等待新窗口</small></td>
-          <td v-if="budget(l)">
-            <span>${{ budget(l)!.weekly_used_usd }} / {{ Number(budget(l)!.weekly_limit_usd) === 0 ? '不限' : `$${budget(l)!.weekly_limit_usd}` }}</span><progress v-if="Number(budget(l)!.weekly_limit_usd) > 0" :value="Number(budget(l)!.weekly_used_usd)" :max="Number(budget(l)!.weekly_limit_usd)" /><small class="expiry">{{ budget(l)!.weekly_resets_at_ms ? `原生到期 ${date(budget(l)!.weekly_resets_at_ms)}` : '尚未开启或已到期' }}<Help v-if="budget(l)!.weekly_resets_at_ms && budget(l)!.weekly_resets_at_ms! < sample(l).reset" label="原生到期说明">Key 的原生周窗口会比账号窗口先到期并自行清零一次，本插件只在确认账号新周期后清零</Help></small>
-          </td>
-          <td v-else>
-            <small>无法读取 Key 预算</small>
-          </td>
-          <td>
-            <div class="status">
-              <BaseTag :type="tone(l)" size="sm">
-                {{ status(l) }}
-              </BaseTag><BaseButton v-if="['等待确认', '需处理'].includes(status(l))" size="sm" @click="open('process', l)">
-                处理
-              </BaseButton>
-            </div>
-          </td>
-          <td>
-            <div class="tools">
-              <BaseIconButton label="立即检查" title="立即检查" :disabled="busy || l.paused" @click="selected = l.key_id; act('check')">
-                <RefreshCw />
-              </BaseIconButton><BaseIconButton label="查看详情" @click="open('detail', l)">
-                <ChevronRight />
-              </BaseIconButton>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <footer>仅决定周预算何时清零，不改变请求路由<Help>仅在确认账号新周期后清零，不改变 Key 的原生到期时间<br>不修改预算上限，不创建 Key，也不控制请求路由</Help></footer>
+      <table v-else-if="data">
+        <thead><tr><th>Key / 关联账号</th><th>本周用量</th><th>账号使用情况</th><th>账号预计重置</th><th>状态</th><th><span class="sr-only">操作</span></th></tr></thead>
+        <tbody>
+          <tr v-for="l in rows" :key="l.key_id">
+            <td class="identity">
+              <strong>{{ keyName(l) }}</strong><small>{{ accountName(l) }}</small>
+            </td>
+            <td data-label="本周用量" class="numeric">
+              <span v-if="budget(l)"><span class="amount">{{ money(budget(l)!.weekly_used_usd) }}</span><span class="limit"> / {{ Number(budget(l)!.weekly_limit_usd) === 0 ? '不限额' : money(budget(l)!.weekly_limit_usd) }}</span></span><span v-else class="muted">无法读取预算</span>
+            </td>
+            <td data-label="账号使用情况" class="numeric">
+              {{ percent(sample(l).used) }}
+            </td>
+            <td data-label="账号预计重置" class="reset-time">
+              <span :title="date(sample(l).reset, true)">{{ date(sample(l).reset) }}</span><small v-if="observation(l)?.error">最近检查失败</small><small v-else-if="sample(l).reset <= Date.now()">等待账号更新周期</small>
+            </td>
+            <td data-label="状态">
+              <div class="status">
+                <BaseTag :type="tone(l)" size="sm">
+                  {{ status(l) }}
+                </BaseTag><BaseButton v-if="['等待确认', '需处理'].includes(status(l))" size="sm" :disabled="busy" @click="open('process', l)">
+                  处理
+                </BaseButton>
+              </div>
+            </td>
+            <td class="row-actions">
+              <div class="tools">
+                <BaseIconButton label="立即检查" title="立即检查账号额度" :disabled="busy || l.paused" @click="selected = l.key_id; act('check')">
+                  <RefreshCw :size="16" />
+                </BaseIconButton><BaseIconButton label="查看详情" title="查看详情" :disabled="busy" @click="open('detail', l)">
+                  <ChevronRight :size="17" />
+                </BaseIconButton>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
   </main>
   <BaseModal v-model="modalOpen" :title="({ add: '添加关联', detail: '关联详情', process: '处理关联', delete: '删除关联' })[modal] || '关联'" :dismissible="!busy" :draggable="false">
     <p v-if="error" role="alert" class="error">
@@ -188,8 +296,18 @@ onUnmounted(() => clearInterval(timer))
       </p>
     </template>
     <template v-else-if="link && modal === 'detail'">
-      <h3>{{ keyName(link) }}</h3><h4>账号周期</h4><p>{{ account(link)?.name }} · {{ account(link)?.email }}</p><p>预计重置 {{ date(sample(link).reset, true) }} · 已用 {{ sample(link).used ?? '未知' }}%</p>
-      <h4>Key 预算</h4><p>${{ budget(link)?.weekly_used_usd }} / ${{ budget(link)?.weekly_limit_usd }}</p><p>原生到期 {{ date(budget(link)?.weekly_resets_at_ms, true) }}</p>
+      <h3>{{ keyName(link) }}</h3><h4>关联账号</h4><p>{{ accountName(link) }}</p><p v-if="account(link)?.email && account(link)?.email !== accountName(link)" class="muted">
+        {{ account(link)?.email }}
+      </p>
+      <dl><dt>账号使用情况</dt><dd>{{ percent(sample(link).used) }}</dd><dt>账号预计重置</dt><dd>{{ date(sample(link).reset, true) }}</dd></dl>
+      <h4>Key 本周用量</h4><p v-if="budget(link)">
+        {{ money(budget(link)!.weekly_used_usd) }} / {{ Number(budget(link)!.weekly_limit_usd) === 0 ? '不限额' : money(budget(link)!.weekly_limit_usd) }}
+      </p><p v-else>
+        无法读取预算
+      </p>
+      <dl><dt>Key 自身的周用量重置时间</dt><dd>{{ budget(link)?.weekly_resets_at_ms ? date(budget(link)!.weekly_resets_at_ms, true) : '尚未开启或已到期' }}</dd></dl><p class="muted">
+        由宿主独立计算，可能早于账号重置；这不是 Key 失效时间
+      </p>
       <h4>最近事件</h4><p v-for="(event, index) in [...link.events].reverse()" :key="index" class="muted">
         {{ date(event.at) }} · {{ event.reason }}
       </p>
@@ -198,6 +316,8 @@ onUnmounted(() => clearInterval(timer))
           待处理原因 {{ link.pending.reason }}
         </p><p v-if="link.pending?.before">
           重置前周用量 ${{ link.pending.before.weekly_used_usd }}
+        </p><p v-if="budget(link)">
+          完整金额：${{ budget(link)!.weekly_used_usd }} / {{ Number(budget(link)!.weekly_limit_usd) === 0 ? '不限额' : `$${budget(link)!.weekly_limit_usd}` }}
         </p><p>{{ link.pending?.error || observation(link)?.error }}</p>
       </details>
       <h4>操作</h4><div class="tools">
@@ -209,6 +329,9 @@ onUnmounted(() => clearInterval(timer))
       </div>
     </template>
     <template v-else-if="link && modal === 'process'">
+      <h3>{{ keyName(link) }}</h3><p class="muted">
+        {{ accountName(link) }}
+      </p>
       <template v-if="link.pending?.kind === 'unknown'">
         <p>重置结果未知，已停止自动重试</p><p class="muted">
           保留现有用量并跳过会重新建立基线
