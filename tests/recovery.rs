@@ -388,3 +388,42 @@ async fn early_auto_is_enabled_by_default_and_unknown_retry_requires_acknowledge
     );
     assert_eq!(h.0.lock().unwrap().resets.len(), 2);
 }
+
+#[tokio::test]
+async fn prolonged_outage_discards_queued_cycle_before_any_reset() {
+    let h = Fake::new();
+    setup(&h).await;
+    next(&h);
+    h.0.lock().unwrap().fail_budget = Some("key-a".into());
+    Engine::load(&h)
+        .await
+        .unwrap()
+        .check("account-a", WEEK + 1000)
+        .await
+        .unwrap();
+    h.0.lock().unwrap().fail_budget = None;
+    Engine::load(&h)
+        .await
+        .unwrap()
+        .drain(WEEK * 3)
+        .await
+        .unwrap();
+    assert_eq!(h.0.lock().unwrap().resets, vec!["key-b"]);
+    assert!(h.0.lock().unwrap().state.links["key-a"].pending.is_none());
+    {
+        let mut s = h.0.lock().unwrap();
+        s.time = WEEK * 3;
+        s.reset_at = WEEK * 4;
+    }
+    Engine::load(&h)
+        .await
+        .unwrap()
+        .check("account-a", WEEK * 3)
+        .await
+        .unwrap();
+    assert_eq!(h.0.lock().unwrap().resets, vec!["key-b", "key-a", "key-b"]);
+    assert_eq!(
+        h.0.lock().unwrap().state.links["key-a"].baseline.reset,
+        WEEK * 4
+    );
+}

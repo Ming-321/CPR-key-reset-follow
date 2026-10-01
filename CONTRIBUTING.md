@@ -20,6 +20,12 @@ pnpm --dir frontend build
 通过真实 SDK、插件进程、安装器和管理页面验证，不以直接改库代替业务链路
 响应丢失和进程退出可在传输边界定向注入，说明直接验证与推断范围
 
+`cargo build --example fault-proxy` 构建仅用于隔离测试的传输代理，不进入发行包
+代理读取 `/app/.runtime/data/follow-fault.json` 的 `binary` 和 `marker` 路径，启动被测插件
+第一次收到真实宿主的 `host.keys.reset_budget` 回执时，创建一次性 marker 并中止进程，不将回执交给插件
+随后确认插件恢复为“结果未知”，再次产生消费并检查其未被自动清零
+在宿主使用前核对测试代理及被测二进制的平台和系统库兼容性；禁止在生产使用故障代理
+
 ## 提交与 PR
 
 功能分支向 main 提 PR，检查通过后 squash 合并

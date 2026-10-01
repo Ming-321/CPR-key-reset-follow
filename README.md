@@ -41,4 +41,14 @@ Key 的原生周窗口可能比账号窗口提前约 24 小时自然清零一次
 SDK 固定到官方 v3.18.3 提交，页面使用官方 UI v0.3.0 发行包
 项目不依赖其他业务插件，不访问宿主数据库或原始凭据
 
+## 页面预览
+
+以下为官方 v3.18.3 隔离宿主中的实际页面，全部使用合成账号与消费数据
+
+![关联列表](docs/screenshots/list.png)
+
+[添加关联](docs/screenshots/add.png) · [周期待确认](docs/screenshots/early.png) ·
+[结果未知](docs/screenshots/unknown.png) · [窗口识别失败](docs/screenshots/recognition-error.png) ·
+[深色主题](docs/screenshots/dark.png) · [窄屏](docs/screenshots/narrow.png)
+
 许可证：Apache-2.0

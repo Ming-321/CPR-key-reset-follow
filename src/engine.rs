@@ -171,6 +171,18 @@ impl<'a, H: Host> Engine<'a, H> {
         else {
             return Ok(());
         };
+        // 停机或预算读取失败后，不能用过期的排队样本补做旧周期清零。
+        if i128::from(now) - i128::from(sample.observed) > 300_000 {
+            let link = self.state.links.get_mut(key).unwrap();
+            link.pending = None;
+            link.event(now, "排队样本已过期，等待重新检查当前周期");
+            self.state
+                .accounts
+                .entry(link.account_id.clone())
+                .or_default()
+                .next_check = now;
+            return self.save().await;
+        }
         let before = match self.host.budget(key).await {
             Ok(b) => b,
             Err(_) => {
