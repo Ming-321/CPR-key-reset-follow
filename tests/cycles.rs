@@ -50,5 +50,23 @@ fn exact_window_identity_is_required() {
 }
 #[test]
 fn manifest_matches_target_contract() {
-    gateway_plugin_sdk::Manifest::from_author_slice(include_bytes!("../plugin.json")).unwrap();
+    let manifest =
+        gateway_plugin_sdk::Manifest::from_author_slice(include_bytes!("../plugin.json")).unwrap();
+    for (host, allowed) in [
+        ("3.18.2", false),
+        ("3.18.3", true),
+        ("3.18.4", true),
+        ("3.19.0", true),
+        ("3.19.0-beta.1", false),
+        ("4.0.0", false),
+    ] {
+        assert_eq!(
+            manifest
+                .engines
+                .codex_proxy_rs
+                .matches(&host.parse().unwrap()),
+            allowed,
+            "{host}"
+        );
+    }
 }
