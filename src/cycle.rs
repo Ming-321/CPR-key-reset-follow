@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 pub const WEEK: i64 = 604_800_000;
 pub const TOLERANCE: i64 = 120_000;
+pub const SETTLE_INTERVAL: i64 = 300_000;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Sample {
     pub observed: i64,
@@ -63,4 +64,9 @@ pub fn classify(reference: &Sample, next: &Sample) -> Decision {
     } else {
         Decision::Unexplained
     }
+}
+
+pub fn floating(sample: &Sample) -> bool {
+    (i128::from(sample.reset) - i128::from(sample.observed) - i128::from(WEEK)).abs()
+        <= i128::from(TOLERANCE)
 }

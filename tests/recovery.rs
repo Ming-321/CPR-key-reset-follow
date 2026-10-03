@@ -11,7 +11,7 @@ use key_reset_follow::{
     host::{Host, fault},
     model::{Pending, State},
 };
-use std::sync::Mutex;
+use std::{collections::BTreeMap, sync::Mutex};
 #[derive(Default)]
 struct Storage {
     state: State,
@@ -26,6 +26,8 @@ struct Storage {
     missing_window: bool,
     changed_window: bool,
     fail_budget: Option<String>,
+    weekly_used: BTreeMap<String, String>,
+    used_percent: f64,
 }
 struct Fake(Mutex<Storage>);
 impl Fake {
@@ -33,6 +35,7 @@ impl Fake {
         Self(Mutex::new(Storage {
             time: 1000000,
             reset_at: WEEK,
+            used_percent: 10.0,
             ..Default::default()
         }))
     }
@@ -69,7 +72,7 @@ impl Host for Fake {
                     }
                     .into(),
                     window_seconds: Some(604800),
-                    used_percent: Some(10.0),
+                    used_percent: Some(s.used_percent),
                     reset_at_ms: Some(s.reset_at),
                 }]
             },
@@ -84,7 +87,14 @@ impl Host for Fake {
             daily_limit_usd: "0".into(),
             weekly_limit_usd: "60".into(),
             daily_used_usd: "0".into(),
-            weekly_used_usd: "12".into(),
+            weekly_used_usd: self
+                .0
+                .lock()
+                .unwrap()
+                .weekly_used
+                .get(key)
+                .cloned()
+                .unwrap_or_else(|| "12".into()),
             daily_resets_at_ms: None,
             weekly_resets_at_ms: Some(WEEK),
         })
@@ -96,6 +106,7 @@ impl Host for Fake {
         }
         let mut s = self.0.lock().unwrap();
         s.resets.push(key.into());
+        s.weekly_used.insert(key.into(), "0".into());
         if s.lost_response.as_deref() == Some(key) {
             Err(fault("response lost after commit"))
         } else {
@@ -455,4 +466,246 @@ async fn beta_state_and_pending_reset_survive_display_settings() {
     assert_eq!(after["accounts"], old["accounts"]);
     assert_eq!(h.0.lock().unwrap().resets.len(), 2);
     assert!(serde_json::from_value::<DisplayTimezone>(serde_json::json!("unsupported")).is_err());
+}
+
+#[tokio::test]
+async fn rolling_unused_window_resets_once_and_records_one_event_per_key() {
+    let h = Fake::new();
+    setup(&h).await;
+    let first = 2_000_000;
+    {
+        let mut s = h.0.lock().unwrap();
+        s.time = first;
+        s.reset_at = first + WEEK;
+        s.used_percent = 0.0;
+    }
+    Engine::load(&h)
+        .await
+        .unwrap()
+        .check("account-a", first)
+        .await
+        .unwrap();
+    {
+        let mut s = h.0.lock().unwrap();
+        assert_eq!(s.resets, ["key-a", "key-b"]);
+        s.weekly_used.insert("key-a".into(), "7".into());
+    }
+    let first_event = h.0.lock().unwrap().state.links["key-a"]
+        .events
+        .back()
+        .unwrap()
+        .at;
+    for i in 1..=12 {
+        let t = first + i * 300_000;
+        {
+            let mut s = h.0.lock().unwrap();
+            s.time = t;
+            s.reset_at = t + WEEK;
+        }
+        Engine::load(&h)
+            .await
+            .unwrap()
+            .check("account-a", t)
+            .await
+            .unwrap();
+        let s = h.0.lock().unwrap();
+        assert_eq!(s.resets, ["key-a", "key-b"], "poll {i}");
+        assert_eq!(s.weekly_used["key-a"], "7");
+        for key in ["key-a", "key-b"] {
+            let events = &s.state.links[key].events;
+            assert_eq!(events.iter().filter(|e| e.reason == "提前重置").count(), 1);
+            assert_eq!(events.back().unwrap().at, first_event);
+            assert!(matches!(
+                s.state.links[key].phase,
+                key_reset_follow::model::Phase::Settling { .. }
+            ));
+        }
+    }
+    let fixed_reset = h.0.lock().unwrap().reset_at;
+    for i in 13..=15 {
+        let t = first + i * 300_000;
+        h.0.lock().unwrap().time = t;
+        Engine::load(&h)
+            .await
+            .unwrap()
+            .check("account-a", t)
+            .await
+            .unwrap();
+    }
+    {
+        let s = h.0.lock().unwrap();
+        assert_eq!(s.resets.len(), 2);
+        assert_eq!(s.state.links["key-a"].baseline.reset, fixed_reset);
+        assert!(matches!(
+            s.state.links["key-a"].phase,
+            key_reset_follow::model::Phase::Tracking
+        ));
+    }
+    let t = first + 20 * 300_000;
+    {
+        let mut s = h.0.lock().unwrap();
+        s.time = t;
+        s.reset_at = fixed_reset + 1_500_000;
+        s.used_percent = 2.0;
+    }
+    Engine::load(&h)
+        .await
+        .unwrap()
+        .check("account-a", t)
+        .await
+        .unwrap();
+    let s = h.0.lock().unwrap();
+    assert_eq!(s.resets.len(), 4);
+    assert_eq!(
+        s.state.links["key-a"]
+            .events
+            .iter()
+            .filter(|e| e.reason == "提前重置")
+            .count(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn legacy_link_without_phase_waits_for_anchor_without_replaying_reset() {
+    let h = Fake::new();
+    setup(&h).await;
+    let first = 2_000_000;
+    {
+        let mut s = h.0.lock().unwrap();
+        s.time = first;
+        s.reset_at = first + WEEK;
+    }
+    Engine::load(&h)
+        .await
+        .unwrap()
+        .check("account-a", first)
+        .await
+        .unwrap();
+    let mut old = serde_json::to_value(&h.0.lock().unwrap().state).unwrap();
+    for link in old["links"].as_object_mut().unwrap().values_mut() {
+        link.as_object_mut().unwrap().remove("phase");
+    }
+    h.0.lock().unwrap().state = serde_json::from_value(old).unwrap();
+    for i in 1..=3 {
+        let t = first + i * 300_000;
+        {
+            let mut s = h.0.lock().unwrap();
+            s.time = t;
+            s.reset_at = t + WEEK;
+        }
+        Engine::load(&h)
+            .await
+            .unwrap()
+            .check("account-a", t)
+            .await
+            .unwrap();
+    }
+    let s = h.0.lock().unwrap();
+    assert_eq!(s.resets, ["key-a", "key-b"]);
+    assert_eq!(
+        s.state.links["key-a"]
+            .events
+            .iter()
+            .filter(|e| e.reason == "提前重置")
+            .count(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn small_forward_shifts_do_not_accumulate_into_a_second_reset() {
+    let h = Fake::new();
+    setup(&h).await;
+    let first = 2_000_000;
+    {
+        let mut s = h.0.lock().unwrap();
+        s.time = first;
+        s.reset_at = first + WEEK;
+        s.used_percent = 0.0;
+    }
+    Engine::load(&h)
+        .await
+        .unwrap()
+        .check("account-a", first)
+        .await
+        .unwrap();
+    for i in 1..=20 {
+        let t = first + i * 300_000;
+        {
+            let mut s = h.0.lock().unwrap();
+            s.time = t;
+            s.reset_at = first + WEEK + i * 60_000;
+        }
+        Engine::load(&h)
+            .await
+            .unwrap()
+            .check("account-a", t)
+            .await
+            .unwrap();
+        let s = h.0.lock().unwrap();
+        assert_eq!(s.resets.len(), 2, "poll {i}");
+        assert!(matches!(
+            s.state.links["key-a"].phase,
+            key_reset_follow::model::Phase::Settling { .. }
+        ));
+        assert!(s.state.links["key-a"].pending.is_none());
+    }
+}
+
+#[tokio::test]
+async fn new_and_resumed_links_wait_for_a_floating_window_to_settle() {
+    let h = Fake::new();
+    let first = 2_000_000;
+    {
+        let mut s = h.0.lock().unwrap();
+        s.time = first;
+        s.reset_at = first + WEEK;
+        s.used_percent = 0.0;
+    }
+    Engine::load(&h)
+        .await
+        .unwrap()
+        .add("key-a", "account-a", first)
+        .await
+        .unwrap();
+    assert!(matches!(
+        h.0.lock().unwrap().state.links["key-a"].phase,
+        key_reset_follow::model::Phase::Settling { .. }
+    ));
+    Engine::load(&h)
+        .await
+        .unwrap()
+        .action("key-a", "pause", false, first)
+        .await
+        .unwrap();
+    let resumed = first + 300_000;
+    {
+        let mut s = h.0.lock().unwrap();
+        s.time = resumed;
+        s.reset_at = resumed + WEEK;
+    }
+    Engine::load(&h)
+        .await
+        .unwrap()
+        .action("key-a", "resume", false, resumed)
+        .await
+        .unwrap();
+    for i in 2..=5 {
+        let t = first + i * 300_000;
+        {
+            let mut s = h.0.lock().unwrap();
+            s.time = t;
+            s.reset_at = t + WEEK;
+        }
+        Engine::load(&h)
+            .await
+            .unwrap()
+            .check("account-a", t)
+            .await
+            .unwrap();
+    }
+    let s = h.0.lock().unwrap();
+    assert!(s.resets.is_empty());
+    assert!(s.state.links["key-a"].pending.is_none());
 }
