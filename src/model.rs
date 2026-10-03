@@ -39,6 +39,19 @@ pub struct Link {
     pub events: VecDeque<Event>,
     #[serde(default)]
     pub retry_at: i64,
+    #[serde(default)]
+    pub phase: Phase,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Phase {
+    Tracking,
+    Settling { candidate: Option<Sample> },
+}
+impl Default for Phase {
+    fn default() -> Self {
+        Self::Settling { candidate: None }
+    }
 }
 impl Link {
     pub fn event(&mut self, at: i64, reason: impl Into<String>) {

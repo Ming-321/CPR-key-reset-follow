@@ -1,7 +1,7 @@
 use crate::{
     cycle::{self, Decision, Sample},
     host::{Host, fault},
-    model::{Link, Pending, State},
+    model::{Link, Pending, Phase, State},
 };
 use gateway_plugin_sdk::PluginFault;
 
@@ -36,6 +36,11 @@ impl<'a, H: Host> Engine<'a, H> {
         }
         self.host.budget(key).await?;
         let baseline = self.fresh(account).await?;
+        let phase = if cycle::floating(&baseline) {
+            Phase::default()
+        } else {
+            Phase::Tracking
+        };
         self.state.accounts.entry(account.into()).or_default();
         self.state.links.insert(
             key.into(),
@@ -47,6 +52,7 @@ impl<'a, H: Host> Engine<'a, H> {
                 pending: None,
                 events: Default::default(),
                 retry_at: 0,
+                phase,
             },
         );
         self.state
@@ -121,6 +127,32 @@ impl<'a, H: Host> Engine<'a, H> {
             .values_mut()
             .filter(|l| l.account_id == account_id && !l.paused && l.pending.is_none())
         {
+            if let Phase::Settling { candidate } = &mut link.phase {
+                // 下一个完整周周期已越过上次结束时间，可独立处理正常换周。
+                if cycle::classify(&link.baseline, &sample) == Decision::Normal {
+                    link.pending = Some(Pending::Ready {
+                        sample: sample.clone(),
+                        reason: "正常换周".into(),
+                    });
+                    continue;
+                }
+                if cycle::floating(&sample) {
+                    *candidate = None;
+                } else if let Some(first) = candidate {
+                    let reset_shift = i128::from(sample.reset) - i128::from(first.reset);
+                    let stable = sample.observed - first.observed >= cycle::SETTLE_INTERVAL
+                        && reset_shift.abs() <= 1_000;
+                    if stable {
+                        link.baseline = sample.clone();
+                        link.phase = Phase::Tracking;
+                    } else if reset_shift.abs() > 1_000 {
+                        *candidate = Some(sample.clone());
+                    }
+                } else {
+                    *candidate = Some(sample.clone());
+                }
+                continue;
+            }
             let decision = cycle::classify(&link.baseline, &sample);
             match decision {
                 Decision::Same => link.baseline.observed = sample.observed,
@@ -208,6 +240,7 @@ impl<'a, H: Host> Engine<'a, H> {
         match result {
             Ok(()) => {
                 link.baseline = sample;
+                link.phase = Phase::default();
                 link.pending = None;
                 link.event(now, reason);
             }
@@ -253,6 +286,11 @@ impl<'a, H: Host> Engine<'a, H> {
                 let fresh = self.fresh(&link.account_id).await?;
                 let l = self.state.links.get_mut(key).unwrap();
                 l.baseline = fresh;
+                l.phase = if cycle::floating(&l.baseline) {
+                    Phase::default()
+                } else {
+                    Phase::Tracking
+                };
                 l.pending = None;
                 l.paused = false;
                 l.event(now, "保留现有用量并重新建立基线");
