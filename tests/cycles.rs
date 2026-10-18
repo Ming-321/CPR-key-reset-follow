@@ -53,11 +53,13 @@ fn manifest_matches_target_contract() {
     let manifest =
         gateway_plugin_sdk::Manifest::from_author_slice(include_bytes!("../plugin.json")).unwrap();
     for (host, allowed) in [
-        ("3.18.2", false),
-        ("3.18.3", true),
-        ("3.18.4", true),
-        ("3.19.0", true),
-        ("3.19.0-beta.1", false),
+        ("3.18.3", false),
+        ("3.28.9", false),
+        ("3.29.0", true),
+        ("3.29.1", true),
+        ("3.29.2", true),
+        ("3.29.0-beta.1", false),
+        ("3.30.0", false),
         ("4.0.0", false),
     ] {
         assert_eq!(

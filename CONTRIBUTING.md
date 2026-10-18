@@ -2,7 +2,7 @@
 
 ## 开发依据
 
-宿主与 SDK 固定官方 v3.18.3 提交 `9c1067676495623111497111b7cb136544fe1828`，UI 使用官方 v0.3.0 发行包
+宿主与 SDK 固定官方 v3.29.1 提交 `743a3aba70a4f78f27fb53d80a6e719599d2fe5e`，UI 使用官方 v0.3.0 发行包
 先阅读 [设计合同](docs/design.md)，周期判定与重置语义属于数据安全边界
 
 使用 Rust 1.97.0、Node.js 24 和 pnpm 12.6.0
@@ -49,7 +49,7 @@ cpr-plugin package --manifest plugin.json --binary target/release/key-reset-foll
 
 target 必须匹配实际编译平台，不通过修改平台参数伪装交叉编译
 版本修改经 PR 合并，`v<version>` 标签与 plugin.json 逐字一致，只标记已验证提交
-CI 在对应架构的 Ubuntu 24.04 runner 上分别构建、检查并发布 Linux x86_64 与 ARM64 的 tar.gz 和 SHA-256 校验文件，带后缀的版本标为预发行
+CI 改为手动触发，避免推送或标签消耗 Actions 额度。本地发布按 [本地发布](docs/local-release.md) 完成检查和两个架构的 tar.gz 及 SHA-256 文件；将真实本地检查结果回报为 `check` 提交状态后按 PR 合并。保留手动 CI 的原生双架构构建能力，带后缀的版本标为预发行。
 已发布标签不移动，附件不覆盖；修正内容发布新版本
 从预发行升级稳定版使用单独版本 PR，生产安装和稳定版发布须有对应用户授权
 下载公开附件并核对摘要后才安装，安装后检查原有关联与状态保留
