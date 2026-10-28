@@ -1,11 +1,11 @@
-# v0.1.3
+# v0.1.4
 
-适配 CPR v3.29.1：SDK 和打包工具固定到官方 v3.29.1，使用 RPC v4、management v2、maintenance v1。支持 CPR >=3.29.0、<3.30.0；旧 CPR 请继续使用先前兼容版本。
+适配 CPR v3.34.0：SDK 和打包工具固定到官方 v3.34.0，使用 RPC v7、management v2、maintenance v1。支持 CPR >=3.34.0、<3.35.0；旧 CPR 请继续使用先前兼容版本。
 
 业务代码和状态 Schema 不变，关联、设置和待处理记录继续沿用。保持同一周期只重置一次、结果未知不自动重试的规则。请通过插件更新或版本切换升级，不要卸载重装。
 
 提供 Linux x86_64、ARM64 安装包及 SHA-256 校验文件。本次本地构建，CI 改为手动触发。ARM64 Rust 检查和 19 项逻辑测试通过；两个架构完成 release 编译。x86_64 为交叉编译，未执行运行测试。
 
-前端 lint、2 项测试、类型检查及生产构建通过。UI 官方发行包经锁文件 SHA-512 校验一致后在临时目录本地提供，仓库依赖和锁文件未更改。
+前端源码、依赖和锁文件未改，复用上版已通过 lint、2 项测试、类型检查和生产构建的页面产物。
 
-CPR v3.29.1 的宿主安装、管理页面与升级保留状态尚未联调，由使用者安装测试。步骤见 [本地发布与测试清单](https://github.com/Ming-321/CPR-key-reset-follow/blob/main/docs/local-release.md)。
+CPR v3.34.0 的宿主安装、管理页面与升级保留状态尚未联调，由使用者安装测试。步骤见 [本地发布与测试清单](https://github.com/Ming-321/CPR-key-reset-follow/blob/main/docs/local-release.md)。

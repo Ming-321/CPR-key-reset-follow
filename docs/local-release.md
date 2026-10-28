@@ -1,32 +1,32 @@
 # 本地构建与发布
 
-在 Linux 中从待发布提交构建。需要 Rust 1.97.0（含 rustfmt、clippy）、Node 24、pnpm 12.6.0，以及目标架构的 C 编译器。ARM64 主机上的 x86_64 交叉编译使用 x86_64-linux-gnu-gcc。
+在 Linux 中从待发布提交构建。需要 Rust 1.99.1（含 rustfmt、clippy）、Node 24、pnpm 12.6.0，以及目标架构的 C 编译器。ARM64 主机上的 x86_64 交叉编译使用 x86_64-linux-gnu-gcc。
 
 ## 检查与编译
 
 在插件仓库执行：
 
 ```sh
-cargo +1.97.0 fmt --check
-cargo +1.97.0 clippy --all-targets --locked -- -D warnings
-cargo +1.97.0 test --locked
+cargo +1.99.1 fmt --check
+cargo +1.99.1 clippy --all-targets --locked -- -D warnings
+cargo +1.99.1 test --locked
 pnpm --dir frontend install --frozen-lockfile
 pnpm --dir frontend lint
 pnpm --dir frontend test
 pnpm --dir frontend build
-cargo +1.97.0 build --release --locked --target aarch64-unknown-linux-gnu
+cargo +1.99.1 build --release --locked --target aarch64-unknown-linux-gnu
 CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-linux-gnu-gcc \
-  cargo +1.97.0 build --release --locked --target x86_64-unknown-linux-gnu
+  cargo +1.99.1 build --release --locked --target x86_64-unknown-linux-gnu
 ```
 
 如设置 CARGO_TARGET_DIR，后续二进制路径需相应替换。交叉编译通过不代表目标架构运行测试通过。
 
 ## 打包
 
-检出官方 CPR v3.29.1 提交 `743a3aba70a4f78f27fb53d80a6e719599d2fe5e`，在其目录运行：
+检出官方 CPR v3.34.0 提交 `47d30474af7c3e1fab433f2d4a70430fae548ff2`，在其目录运行：
 
 ```sh
-cargo +1.97.0 build --manifest-path backend/Cargo.toml -p codex-proxy-plugin-cli --locked
+cargo +1.99.1 build --manifest-path backend/Cargo.toml -p codex-proxy-plugin-cli --locked
 ```
 
 返回插件仓库，设置 CPR_PLUGIN 为上述构建产生的 cpr-plugin 绝对路径：
@@ -40,7 +40,7 @@ done
 (cd dist && sha256sum --check *.sha256)
 ```
 
-检查包内 manifest 的 RPC 为 4、management 为 2，并核对实际二进制架构和动态库要求。账号保护 middleware 为 5 且保持 attempt，Key 重置 maintenance 为 1。
+检查包内 manifest 的 RPC 为 7、management 为 2，并核对实际二进制架构和动态库要求。账号保护 middleware 为 6 且保持 attempt，Key 重置 maintenance 为 1。
 
 ## 发布
 
@@ -50,7 +50,7 @@ CI 仅手动触发，不在 push、PR 或标签事件上自动构建。本地全
 
 ## 用户宿主测试清单
 
-在隔离 CPR v3.29.1 环境用合成数据检查：
+在隔离 CPR v3.34.0 环境用合成数据检查：
 
 - 从旧版更新后能启用，管理页面可读取与保存，原有设置、关联、状态和中间件失败策略保留。
 - Key 重置：换周只重置一次，未知结果不自动重试。

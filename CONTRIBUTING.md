@@ -2,10 +2,10 @@
 
 ## 开发依据
 
-宿主与 SDK 固定官方 v3.29.1 提交 `743a3aba70a4f78f27fb53d80a6e719599d2fe5e`，UI 使用官方 v0.3.0 发行包
+宿主与 SDK 固定官方 v3.34.0 提交 `47d30474af7c3e1fab433f2d4a70430fae548ff2`，UI 使用官方 v0.3.0 发行包
 先阅读 [设计合同](docs/design.md)，周期判定与重置语义属于数据安全边界
 
-使用 Rust 1.97.0、Node.js 24 和 pnpm 12.6.0
+使用 Rust 1.99.1、Node.js 24 和 pnpm 12.6.0
 
 ```sh
 cargo fmt --check
