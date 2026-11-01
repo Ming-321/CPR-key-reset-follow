@@ -35,7 +35,7 @@ cargo zigbuild --release --locked --target x86_64-unknown-linux-gnu.2.31
 
 ## 打包
 
-检出官方 CPR v3.36.0 提交 `5ae38dc0c55c192815ef605dde6c05fd767a2c28`，在其目录运行：
+检出官方 CPR v3.37.2 提交 `641f43b3030b1c68961e05d525e58ec6f4264a15`，在其目录运行：
 
 ```sh
 cargo +1.99.1 build --manifest-path backend/Cargo.toml -p codex-proxy-plugin-cli --locked
@@ -60,9 +60,11 @@ CI 仅手动触发，不在 push、PR 或标签事件上自动构建。本地全
 
 标签对应实际产物源码，且与 plugin.json 版本相同。创建正式 GitHub Release，上传两个 tar.gz 及对应 sha256；不覆盖已有标签或附件。上传后下载公开附件并核对校验值。
 
+页面入口通过 `codex-proxy-ui-theme-prefix=cp` 声明所用 UI v0.3.0 的主题命名空间，宿主桥据此写入 `--cp-*` Token。保留该声明才能接收宿主主题更新。
+
 ## 用户宿主测试清单
 
-在隔离 CPR v3.36.0 环境用合成数据检查：
+在隔离 CPR v3.37.2 环境用合成数据检查：
 
 - 从旧版更新后能启用，管理页面可读取与保存，原有设置、关联、状态和中间件失败策略保留。
 - Key 重置：换周只重置一次，未知结果不自动重试。
