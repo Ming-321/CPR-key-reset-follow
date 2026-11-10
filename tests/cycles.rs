@@ -55,12 +55,12 @@ fn manifest_matches_target_contract() {
     for (host, allowed) in [
         ("3.18.3", false),
         ("3.34.0", false),
-        ("3.42.1", false),
-        ("3.43.0", true),
-        ("3.43.1", true),
-        ("3.43.9", true),
-        ("3.43.0-beta.1", false),
-        ("3.44.0", false),
+        ("3.43.1", false),
+        ("3.44.0", true),
+        ("3.44.1", true),
+        ("3.44.9", true),
+        ("3.44.0-beta.1", false),
+        ("3.45.0", false),
         ("4.0.0", false),
     ] {
         assert_eq!(
