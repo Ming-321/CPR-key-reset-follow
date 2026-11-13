@@ -35,7 +35,7 @@ cargo zigbuild --release --locked --target x86_64-unknown-linux-gnu.2.31
 
 ## 打包
 
-检出官方 CPR v3.45.2 提交 `bd69329a37264eb28967e07bd1d5622472af747c`，在其目录运行：
+检出官方 CPR v3.47.0 提交 `0e02a056b5a4fcb9fe204e741cbc20575041d7ba`，在其目录运行：
 
 ```sh
 cargo +1.99.1 build --manifest-path backend/Cargo.toml -p codex-proxy-plugin-cli --locked
@@ -64,7 +64,7 @@ CI 仅手动触发，不在 push、PR 或标签事件上自动构建。本地全
 
 ## 用户宿主测试清单
 
-在隔离 CPR v3.45.2 环境用合成数据检查：
+在隔离 CPR v3.47.0 环境用合成数据检查：
 
 - 从旧版更新后能启用，管理页面可读取与保存，原有设置、关联、状态和中间件失败策略保留。
 - Key 重置：换周只重置一次，未知结果不自动重试。
