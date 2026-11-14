@@ -1,11 +1,11 @@
 [package]
 name = "key-reset-follow"
-version = "0.1.13"
+version = "0.1.14"
 edition = "2024"
 license = "Apache-2.0"
 
 [dependencies]
-gateway-plugin-sdk = { git = "https://github.com/zyycn/codex-proxy-rs", rev = "0e02a056b5a4fcb9fe204e741cbc20575041d7ba", features = ["io"] }
+gateway-plugin-sdk = { git = "https://github.com/zyycn/codex-proxy-rs", rev = "d787195f4ed335a28368c2b334b5ab569b938fbf", features = ["io"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std", "sync", "time"] }
